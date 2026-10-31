@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?> 
+
+<module> 
+  <menulist> 
+
+	<menuitem menuid="voiz-monitor" desc="مکالمات ضبط شده | ویز"
+parent="pbxconfig" module="no" link="record/monitoring.php" order="61"> 
+      <permissions> 
+        <group id="1" name="administrator" desc="total access"></group> 
+      </permissions> 
+    </menuitem> 
+	
+		<menuitem menuid="voiz-cdr" desc="ریز مکالمات | ویز"
+parent="reports" module="no" link="record/reports.php" order="61"> 
+      <permissions> 
+        <group id="1" name="administrator" desc="total access"></group> 
+      </permissions> 
+    </menuitem> 
+
+	
+  </menulist> 
+</module>
