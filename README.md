@@ -43,6 +43,10 @@ curl -sSL https://raw.githubusercontent.com/voipiran/voiz-cdr-recording/main/ins
 wget -qO- https://raw.githubusercontent.com/voipiran/voiz-cdr-recording/main/install.sh | bash
 ```
 
+در اجرای یک‌خطی، نصب‌کننده ابتدا نسخه کامل پروژه را دریافت می‌کند تا پوشه‌های
+`html/` و فایل `menu.xml` نیز در دسترس باشند؛ بنابراین نیازی به clone یا دانلود
+دستی پروژه نیست.
+
 نصب‌کننده خودکار موارد زیر را انجام می‌دهد:
 - استخراج رمز دیتابیس از `/etc/issabel.conf`
 - کپی فایل‌ها به `/var/www/html/`

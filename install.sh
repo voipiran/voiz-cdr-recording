@@ -4,7 +4,26 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_SOURCE="${BASH_SOURCE[0]:-}"
+if [[ -z "${SCRIPT_SOURCE}" && "${VOIZ_CDR_BOOTSTRAPPED:-0}" != "1" ]]; then
+    BOOTSTRAP_DIR=$(mktemp -d /tmp/voiz-cdr-recording.XXXXXX)
+    BOOTSTRAP_ARCHIVE="${BOOTSTRAP_DIR}/source.tar.gz"
+    BOOTSTRAP_REPOSITORY="${VOIZ_CDR_REPOSITORY:-https://github.com/voipiran/voiz-cdr-recording}"
+
+    curl -fsSL "${BOOTSTRAP_REPOSITORY}/archive/refs/heads/main.tar.gz" \
+        -o "${BOOTSTRAP_ARCHIVE}"
+    tar -xzf "${BOOTSTRAP_ARCHIVE}" -C "${BOOTSTRAP_DIR}"
+    BOOTSTRAP_SOURCE=$(find "${BOOTSTRAP_DIR}" -mindepth 1 -maxdepth 1 -type d -print -quit)
+    if [[ -z "${BOOTSTRAP_SOURCE}" || ! -f "${BOOTSTRAP_SOURCE}/install.sh" ]]; then
+        echo "ERROR: Complete VOIZ CDR Recording source was not found." >&2
+        exit 1
+    fi
+
+    export VOIZ_CDR_BOOTSTRAPPED=1
+    exec bash "${BOOTSTRAP_SOURCE}/install.sh" "$@"
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${SCRIPT_SOURCE}")" && pwd)"
 VOIZ_ROOT="${SCRIPT_DIR}"
 LOG_FILE="${VOIZ_ROOT}/voiz-cdr-recording-install.log"
 
