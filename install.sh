@@ -38,12 +38,15 @@ log() {
 }
 
 # ==========================================
-# 1. Detect Issabel and extract DB password
+# 1. Detect Issabel and extract DB credentials
 # ==========================================
-detect_db_password() {
+detect_db_credentials() {
     local rootpw=""
+    local ampdbuser=""
+    local ampdbpass=""
+
     if [[ -f /etc/issabel.conf ]]; then
-        rootpw=$(sed -ne 's/.*mysqlrootpwd=//gp' /etc/issabel.conf 2>/dev/null || true)
+        rootpw=$(sed -ne 's/^[[:space:]]*mysqlrootpwd[[:space:]]*=[[:space:]]*//p' /etc/issabel.conf 2>/dev/null | tr -d '[:space:]' || true)
     fi
 
     if [[ -z "${rootpw}" ]]; then
@@ -51,9 +54,31 @@ detect_db_password() {
         return 1
     fi
 
-    export CDR_DB_PASS="${rootpw}"
-    log "Database password extracted from /etc/issabel.conf"
-    return 0
+    log "Database root password extracted from /etc/issabel.conf"
+
+    if [[ -f /etc/amportal.conf ]]; then
+        ampdbuser=$(sed -ne 's/^[[:space:]]*AMPDBUSER[[:space:]]*=[[:space:]]*//p' /etc/amportal.conf | head -n 1 | tr -d '[:space:]')
+        ampdbpass=$(sed -ne 's/^[[:space:]]*AMPDBPASS[[:space:]]*=[[:space:]]*//p' /etc/amportal.conf | head -n 1 | tr -d '[:space:]')
+    fi
+
+    export CDR_DB_NAME="asteriskcdrdb"
+    if [[ -n "${ampdbuser}" && -n "${ampdbpass}" ]] &&
+        mysql -h127.0.0.1 -u"${ampdbuser}" -p"${ampdbpass}" "${CDR_DB_NAME}" -e "SELECT 1" >/dev/null 2>&1; then
+        export CDR_DB_USER="${ampdbuser}"
+        export CDR_DB_PASS="${ampdbpass}"
+        log "Using the Issabel CDR database credentials from /etc/amportal.conf"
+        return 0
+    fi
+
+    if mysql -h127.0.0.1 -uroot -p"${rootpw}" "${CDR_DB_NAME}" -e "SELECT 1" >/dev/null 2>&1; then
+        export CDR_DB_USER="root"
+        export CDR_DB_PASS="${rootpw}"
+        log "Using the root database credentials from /etc/issabel.conf"
+        return 0
+    fi
+
+    echo -e "${RED}ERROR: Could not connect to ${CDR_DB_NAME} with Issabel database credentials${NC}"
+    return 1
 }
 
 # ==========================================
@@ -78,14 +103,24 @@ install_files() {
 # ==========================================
 configure_config() {
     local config_file="/var/www/html/record/config.php"
+    local escaped_db_user
+    local escaped_db_name
+    local escaped_db_pass
 
     if [[ ! -f "${config_file}" ]]; then
         echo -e "${RED}ERROR: config.php not found at ${config_file}${NC}"
         return 1
     fi
 
-    sed -i "s/'db_pass' *=> *'database_password'/'db_pass' => '${CDR_DB_PASS}'/" "${config_file}"
-    log "Configured ${config_file} with database password"
+    escaped_db_user=$(printf '%s' "${CDR_DB_USER}" | sed "s/[\\&|]/\\\\&/g; s/'/\\\\'/g")
+    escaped_db_name=$(printf '%s' "${CDR_DB_NAME}" | sed "s/[\\&|]/\\\\&/g; s/'/\\\\'/g")
+    escaped_db_pass=$(printf '%s' "${CDR_DB_PASS}" | sed "s/[\\&|]/\\\\&/g; s/'/\\\\'/g")
+    sed -i \
+        -e "s|^[[:space:]]*'db_name'[[:space:]]*=>.*|    'db_name'     => '${escaped_db_name}',|" \
+        -e "s|^[[:space:]]*'db_user'[[:space:]]*=>.*|    'db_user'     => '${escaped_db_user}',|" \
+        -e "s|^[[:space:]]*'db_pass'[[:space:]]*=>.*|    'db_pass'     => '${escaped_db_pass}',|" \
+        "${config_file}"
+    log "Configured ${config_file} with verified database credentials"
     return 0
 }
 
@@ -139,7 +174,7 @@ main() {
     echo "============================="
     echo
 
-    detect_db_password || exit 1
+    detect_db_credentials || exit 1
     install_files || exit 1
     configure_config || exit 1
     install_menu
